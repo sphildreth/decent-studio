@@ -1,0 +1,8 @@
+# Local build configuration.
+#
+# The DecentDB engine depends on `libpg_query_sys`, which uses `bindgen` and
+# therefore needs `libclang` at build time. On systems where libclang is not on
+# the default search path, set LIBCLANG_PATH here so `cargo build` works without
+# extra environment setup.
+[env]
+LIBCLANG_PATH = "/usr/lib/llvm-14/lib"

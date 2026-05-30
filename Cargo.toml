@@ -1,0 +1,71 @@
+[package]
+name = "decentdb-studio"
+version = "0.1.0"
+edition = "2021"
+authors = ["DecentDB Studio Contributors"]
+license = "Apache-2.0"
+description = "A cross-platform DecentDB client and database administration tool"
+repository = "https://github.com/sphildreth/decentdb"
+default-run = "decentdb-studio"
+
+[[bin]]
+name = "decentdb-studio"
+path = "src/main.rs"
+
+[dependencies]
+# UI framework. The `highlighter` feature provides syntax highlighting for the
+# `text_editor` widget; `tokio` gives us an async runtime for background tasks;
+# `advanced` exposes the lower-level widget APIs used by the ERD canvas.
+iced = { version = "0.14", features = [
+    "highlighter",
+    "tokio",
+    "canvas",
+    "advanced",
+    "image",
+    "lazy",
+] }
+
+# DecentDB embedded engine (latest release).
+decentdb = { git = "https://github.com/sphildreth/decentdb", tag = "v2.8.0" }
+
+# SQLite reading for the SQLite -> DecentDB converter. Bundled so no system
+# dependency on libsqlite3 is required on any platform.
+rusqlite = { version = "0.32", features = ["bundled", "column_decltype"] }
+
+# Native file dialogs (open/save) on Linux, macOS and Windows.
+rfd = "0.15"
+
+# Serialization for settings and theme persistence.
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Directories for storing config across platforms.
+directories = "5"
+
+# Error handling.
+thiserror = "2"
+anyhow = "1"
+
+# Logging.
+log = "0.4"
+env_logger = "0.11"
+
+# CSV export.
+csv = "1"
+
+# Async runtime helpers (matches the runtime iced uses with its `tokio`
+# feature) so long-running conversions can run on a blocking worker thread.
+tokio = { version = "1", features = ["rt", "rt-multi-thread"] }
+
+[dev-dependencies]
+# Used by the conversion integration test to build a source SQLite database.
+rusqlite = { version = "0.32", features = ["bundled"] }
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+strip = true
+
+[profile.dev]
+opt-level = 1

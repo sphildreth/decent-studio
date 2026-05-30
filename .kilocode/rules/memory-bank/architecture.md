@@ -1,120 +1,60 @@
-# System Patterns: Next.js Starter Template
+# System Patterns: DecentDB Studio
 
 ## Architecture Overview
 
 ```
 src/
-├── app/                    # Next.js App Router
-│   ├── layout.tsx          # Root layout + metadata
-│   ├── page.tsx            # Home page
-│   ├── globals.css         # Tailwind imports + global styles
-│   └── favicon.ico         # Site icon
-└── (expand as needed)
-    ├── components/         # React components (add when needed)
-    ├── lib/                # Utilities and helpers (add when needed)
-    └── db/                 # Database files (add via recipe)
+├── main.rs                 # GUI binary entry point
+├── lib.rs                  # Reusable library exports
+├── app/                    # iced application state, update, views, ERD canvas
+├── db/                     # DecentDB wrapper, schema model, value helpers
+├── convert/                # SQLite conversion pipeline and type mapping
+├── export.rs               # CSV/JSON/Markdown/SQL export
+├── settings.rs             # Persisted app settings and recent files
+└── theme.rs                # Theme catalogue and syntax-highlighting themes
 ```
 
 ## Key Design Patterns
 
-### 1. App Router Pattern
+### 1. Library + GUI Binary
 
-Uses Next.js App Router with file-based routing:
-```
-src/app/
-├── page.tsx           # Route: /
-├── about/page.tsx     # Route: /about
-├── blog/
-│   ├── page.tsx       # Route: /blog
-│   └── [slug]/page.tsx # Route: /blog/:slug
-└── api/
-    └── route.ts       # API Route: /api
-```
+The crate exposes reusable modules through `src/lib.rs`; the GUI binary in
+`src/main.rs` wires those modules into the iced application builder. Tests and
+examples consume the library rather than duplicating GUI code.
 
-### 2. Component Organization Pattern (When Expanding)
+### 2. Database Access Boundary
 
-```
-src/components/
-├── ui/                # Reusable UI components (Button, Card, etc.)
-├── layout/            # Layout components (Header, Footer)
-├── sections/          # Page sections (Hero, Features, etc.)
-└── forms/             # Form components
-```
+All DecentDB access is funnelled through `db::Connection`, a cheap-to-clone
+handle around `decentdb::Db`. Query results and schema data are converted into
+app-owned structs before rendering.
 
-### 3. Server Components by Default
+### 3. Responsive UI Work
 
-All components are Server Components unless marked with `"use client"`:
-```tsx
-// Server Component (default) - can fetch data, access DB
-export default function Page() {
-  return <div>Server rendered</div>;
-}
+Long-running operations, including conversion and export, are dispatched to
+blocking worker threads through the runtime helpers so the iced UI remains
+responsive.
 
-// Client Component - for interactivity
-"use client";
-export default function Counter() {
-  const [count, setCount] = useState(0);
-  return <button onClick={() => setCount(c => c + 1)}>{count}</button>;
-}
-```
+### 4. Conversion Pipeline
 
-### 4. Layout Pattern
-
-Layouts wrap pages and can be nested:
-```tsx
-// src/app/layout.tsx - Root layout
-export default function RootLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <html lang="en">
-      <body>{children}</body>
-    </html>
-  );
-}
-
-// src/app/dashboard/layout.tsx - Nested layout
-export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="flex">
-      <Sidebar />
-      <main>{children}</main>
-    </div>
-  );
-}
-```
+SQLite conversion introspects source schema, maps SQLite affinities to DecentDB
+types, recreates tables and indexes, then copies data in batches.
 
 ## Styling Conventions
 
-### Tailwind CSS Usage
-- Utility classes directly on elements
-- Component composition for repeated patterns
-- Responsive: `sm:`, `md:`, `lg:`, `xl:`
+### iced UI
 
-### Common Patterns
-```tsx
-// Container
-<div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-
-// Responsive grid
-<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-
-// Flexbox centering
-<div className="flex items-center justify-center">
-```
+- UI code lives in `src/app/views.rs` and `src/app/erd.rs`.
+- Themes are centralized in `src/theme.rs`.
+- Keep database work out of view construction.
 
 ## File Naming Conventions
 
-- Components: PascalCase (`Button.tsx`, `Header.tsx`)
-- Utilities: camelCase (`utils.ts`, `helpers.ts`)
-- Pages/Routes: lowercase (`page.tsx`, `layout.tsx`)
-- Directories: kebab-case (`api-routes/`) or lowercase (`components/`)
+- Rust modules use snake_case.
+- Public cross-module types should live near their domain boundary (`db`, `convert`, `export`, `settings`, `theme`).
+- Tests should cover shared behavior in library modules and high-risk conversion paths.
 
 ## State Management
 
-For simple needs:
-- `useState` for local component state
-- `useContext` for shared state
-- Server Components for data fetching
-
-For complex needs (add when necessary):
-- Zustand for client state
-- React Query for server state
+Application state is owned by the iced app module. Database handles, selected
+objects, query buffers, result tabs, conversion progress, edit state, settings,
+and theme choices flow through messages and update handlers.

@@ -76,8 +76,16 @@ Platform notes:
   `libclang`). Ensure `LIBCLANG_PATH` points at the LLVM `bin` directory if it
   is not auto-detected.
 
-If `libclang` is not on the default search path, set `LIBCLANG_PATH` (a sample
-is provided in [`.cargo/config.toml`](.cargo/config.toml)).
+If `libclang` is not auto-detected, set `LIBCLANG_PATH` to the directory
+containing the shared library:
+
+```bash
+LIBCLANG_PATH=/path/to/llvm/lib cargo build
+```
+
+The tracked [`.cargo/config.toml`](.cargo/config.toml) intentionally leaves this
+unset because LLVM install paths vary by OS and distribution. It includes common
+Linux path examples.
 
 ### Build & run
 

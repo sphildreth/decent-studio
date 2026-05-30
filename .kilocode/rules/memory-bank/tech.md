@@ -1,143 +1,111 @@
-# Technical Context: Next.js Starter Template
+# Technical Context: DecentDB Studio
 
 ## Technology Stack
 
-| Technology   | Version | Purpose                         |
-| ------------ | ------- | ------------------------------- |
-| Next.js      | 16.x    | React framework with App Router |
-| React        | 19.x    | UI library                      |
-| TypeScript   | 5.9.x   | Type-safe JavaScript            |
-| Tailwind CSS | 4.x     | Utility-first CSS               |
-| Bun          | Latest  | Package manager & runtime       |
+| Technology | Version | Purpose |
+| ---------- | ------- | ------- |
+| Rust | Edition 2021, stable toolchain | Application and library implementation |
+| Cargo | Rust toolchain default | Build, dependency, and test runner |
+| iced | 0.14 | Cross-platform desktop UI |
+| DecentDB | Git tag `v2.8.0` | Embedded database engine |
+| rusqlite | 0.32, bundled SQLite | SQLite import/export support |
+| rfd | 0.15 | Native file dialogs |
+| serde / serde_json | 1.x | Settings and data serialization |
+| tokio | 1.x | Blocking worker/runtime helpers used with iced |
 
 ## Development Environment
 
 ### Prerequisites
 
-- Bun installed (`curl -fsSL https://bun.sh/install | bash`)
-- Node.js 20+ (for compatibility)
+- Recent stable Rust toolchain from `rustup`.
+- C compiler/toolchain.
+- LLVM/libclang for `bindgen`, required by DecentDB's `libpg_query` dependency.
+- Usual desktop runtime libraries for iced/wgpu on Linux.
 
 ### Commands
 
 ```bash
-bun install        # Install dependencies
-bun dev            # Start dev server (http://localhost:3000)
-bun build          # Production build
-bun start          # Start production server
-bun lint           # Run ESLint
-bun typecheck      # Run TypeScript type checking
+cargo build              # Development build
+cargo build --release    # Optimized GUI binary
+cargo run --release      # Launch GUI
+cargo test               # Unit and integration tests
+cargo run --release --example seed -- demo.ddb
 ```
 
 ## Project Configuration
 
-### Next.js Config (`next.config.ts`)
+### Cargo
 
-- App Router enabled
-- Default settings for flexibility
+- `Cargo.toml` defines the `decentdb-studio` binary at `src/main.rs`.
+- `decentdb` is a git dependency pinned to `https://github.com/sphildreth/decentdb`, tag `v2.8.0`.
+- `rusqlite` uses the `bundled` feature, so no system SQLite library is needed.
+- `.cargo/config.toml` must not set an active machine-specific `LIBCLANG_PATH`.
 
-### TypeScript Config (`tsconfig.json`)
+### Native Build Dependency
 
-- Strict mode enabled
-- Path alias: `@/*` → `src/*`
-- Target: ESNext
+`pg_query` uses `bindgen`, which needs libclang at build time. If auto-discovery
+fails, set `LIBCLANG_PATH` in the shell to the directory containing libclang:
 
-### Tailwind CSS 4 (`postcss.config.mjs`)
-
-- Uses `@tailwindcss/postcss` plugin
-- CSS-first configuration (v4 style)
-
-### ESLint (`eslint.config.mjs`)
-
-- Uses `eslint-config-next`
-- Flat config format
+```bash
+LIBCLANG_PATH=/path/to/llvm/lib cargo build
+```
 
 ## Key Dependencies
 
 ### Production Dependencies
 
-```json
-{
-  "next": "^16.1.3", // Framework
-  "react": "^19.2.3", // UI library
-  "react-dom": "^19.2.3" // React DOM
-}
+```toml
+iced = { version = "0.14", features = ["highlighter", "tokio", "canvas", "advanced", "image", "lazy"] }
+decentdb = { git = "https://github.com/sphildreth/decentdb", tag = "v2.8.0" }
+rusqlite = { version = "0.32", features = ["bundled", "column_decltype"] }
+rfd = "0.15"
 ```
 
 ### Dev Dependencies
 
-```json
-{
-  "typescript": "^5.9.3",
-  "@types/node": "^24.10.2",
-  "@types/react": "^19.2.7",
-  "@types/react-dom": "^19.2.3",
-  "@tailwindcss/postcss": "^4.1.17",
-  "tailwindcss": "^4.1.17",
-  "eslint": "^9.39.1",
-  "eslint-config-next": "^16.0.0"
-}
+```toml
+rusqlite = { version = "0.32", features = ["bundled"] }
 ```
 
 ## File Structure
 
 ```
 /
-├── .gitignore              # Git ignore rules
-├── package.json            # Dependencies and scripts
-├── bun.lock                # Bun lockfile
-├── next.config.ts          # Next.js configuration
-├── tsconfig.json           # TypeScript configuration
-├── postcss.config.mjs      # PostCSS (Tailwind) config
-├── eslint.config.mjs       # ESLint configuration
-├── public/                 # Static assets
-│   └── .gitkeep
-└── src/                    # Source code
-    └── app/                # Next.js App Router
-        ├── layout.tsx      # Root layout
-        ├── page.tsx        # Home page
-        ├── globals.css     # Global styles
-        └── favicon.ico     # Site icon
+├── Cargo.toml              # Crate metadata and dependencies
+├── Cargo.lock              # Locked dependency graph
+├── .cargo/config.toml      # Comments for local native build configuration
+├── src/
+│   ├── main.rs             # GUI binary entry point
+│   ├── lib.rs              # Library module exports
+│   ├── app/                # iced application state, update, views, ERD canvas
+│   ├── db/                 # DecentDB wrapper, schema, value helpers
+│   ├── convert/            # SQLite conversion and type mapping
+│   ├── export.rs           # Result/table export formats
+│   ├── settings.rs         # Persisted user settings
+│   └── theme.rs            # Theme catalogue
+├── examples/seed.rs        # Demo DecentDB database generator
+└── tests/conversion.rs     # SQLite conversion integration test
 ```
 
 ## Technical Constraints
 
-### Starting Point
-
-- Minimal structure - expand as needed
-- No database by default (use recipe to add)
-- No authentication by default (add when needed)
-
-### Browser Support
-
-- Modern browsers (ES2020+)
-- No IE11 support
+- DecentDB is not published to crates.io; keep the git tag pinned.
+- The UI should stay responsive; long database conversion/export work runs on blocking workers.
+- Cross-platform support matters; avoid committing machine-local absolute paths as active config.
 
 ## Performance Considerations
 
-### Image Optimization
-
-- Use Next.js `Image` component for optimization
-- Place images in `public/` directory
-
-### Bundle Size
-
-- Tree-shaking enabled by default
-- Tailwind CSS purges unused styles
-
-### Core Web Vitals
-
-- Server Components reduce client JavaScript
-- Streaming and Suspense for better UX
+- Release builds use `opt-level = 3`, thin LTO, one codegen unit, and stripping.
+- GUI rendering uses iced/wgpu with a software fallback path.
+- Conversion and export work should avoid blocking the UI thread.
 
 ## Deployment
 
 ### Build Output
 
-- Server-rendered pages by default
-- Can be configured for static export
+- Development binary: `target/debug/decentdb-studio`.
+- Release binary: `target/release/decentdb-studio`.
 
 ### Environment Variables
 
-- None required for base template
-- Add as needed for features
-- Use `.env.local` for local development
+- `LIBCLANG_PATH` may be needed when bindgen cannot auto-detect libclang.

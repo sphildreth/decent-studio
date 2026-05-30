@@ -5,6 +5,7 @@
 //! submodules ([`views`], [`erd`]).
 
 mod erd;
+mod style;
 mod views;
 
 use std::path::PathBuf;

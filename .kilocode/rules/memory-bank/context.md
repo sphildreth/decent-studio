@@ -14,6 +14,7 @@ The source tree is a Cargo project with a reusable library and GUI binary.
 - [x] Fixed local compile failure caused by a stale `.cargo/config.toml` `LIBCLANG_PATH` override pointing at `/usr/lib/llvm-14/lib`.
 - [x] Verified `cargo build` succeeds without a repo-level `LIBCLANG_PATH` override; bindgen auto-detects installed LLVM 22 on this machine.
 - [x] Verified `cargo test` passes.
+- [x] Refactored the main iced UI toward a more modern workbench look: fixed the oversized toolbar, added shared style tokens/helpers, restyled command bars, tabs, sidebar rows, inputs, grids, dashboard panels, and the ERD canvas.
 
 ## Current Structure
 
@@ -22,16 +23,16 @@ The source tree is a Cargo project with a reusable library and GUI binary.
 | `src/main.rs` | GUI binary entry point |
 | `src/lib.rs` | Library exports for database, conversion, export, settings, and theme modules |
 | `src/app/` | iced application state, updates, views, and ERD canvas |
+| `src/app/style.rs` | Shared visual styling helpers for iced widgets |
 | `src/db/` | DecentDB connection wrapper, value parsing/formatting, and schema model |
 | `src/convert/` | SQLite -> DecentDB conversion and type mapping |
 | `tests/conversion.rs` | End-to-end SQLite conversion integration test |
 
 ## Current Focus
 
-Keep the Cargo build reproducible across developer machines. DecentDB's
-`libpg_query` dependency requires `libclang` through `bindgen`; do not commit an
-active hard-coded `LIBCLANG_PATH` unless the repo is intentionally made
-machine-specific.
+Keep the UI refactor incremental and verified. The current pass improved the
+shared visual system and core workbench surfaces without changing behavior or
+database logic.
 
 ## Build Notes
 
@@ -61,3 +62,4 @@ On this Fedora-based environment, LLVM is installed under
 | Date | Changes |
 |------|---------|
 | 2026-05-30 | Removed stale active `LIBCLANG_PATH` from `.cargo/config.toml`; documented how to set it per machine. |
+| 2026-05-30 | Added `src/app/style.rs` and modernized the iced workbench shell, grids, dashboard, and ERD canvas. |

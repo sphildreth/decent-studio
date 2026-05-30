@@ -7,13 +7,13 @@ use iced::widget::{
     button, column, container, pick_list, row, rule, scrollable, text, text_editor, text_input,
     Space,
 };
-use iced::{Alignment, Background, Border, Element, Font, Length, Padding, Theme};
+use iced::{Alignment, Element, Font, Length, Padding};
 
 use decentdb_studio::db::{value, ResultSet};
 use decentdb_studio::export::Format;
 use decentdb_studio::theme::AppTheme;
 
-use super::{erd, Message, Panel, SidebarGroup, Studio};
+use super::{erd, style, Message, Panel, SidebarGroup, Studio};
 
 const MONO: Font = Font::MONOSPACE;
 
@@ -30,6 +30,13 @@ fn horizontal_rule<'a>(height: u16) -> Element<'a, Message> {
 /// A vertical divider line.
 fn vertical_rule<'a>(width: u16) -> Element<'a, Message> {
     rule::vertical(width as f32).into()
+}
+
+/// A short separator for dense command bars.
+fn toolbar_separator<'a>() -> Element<'a, Message> {
+    container(rule::vertical(1.0))
+        .height(Length::Fixed(22.0))
+        .into()
 }
 
 /// A fixed-height vertical spacer.
@@ -54,9 +61,15 @@ pub fn root(app: &Studio) -> Element<'_, Message> {
         main_layout(app)
     };
 
-    column![toolbar(app), horizontal_rule(1), body, status_bar(app)]
-        .spacing(0)
-        .into()
+    column![
+        toolbar(app),
+        horizontal_rule(1),
+        container(body).height(Length::Fill),
+        status_bar(app),
+    ]
+    .spacing(0)
+    .height(Length::Fill)
+    .into()
 }
 
 // ----------------------------------------------------------------------------
@@ -77,25 +90,31 @@ fn toolbar(app: &Studio) -> Element<'_, Message> {
         Message::OpenRecent(entry.0)
     })
     .placeholder("Recent…")
+    .style(style::pick_list)
     .width(Length::Fixed(150.0));
 
-    let theme_picker = pick_list(AppTheme::ALL.to_vec(), Some(app.settings.theme), Message::ThemeChanged)
-        .width(Length::Fixed(160.0));
+    let theme_picker = pick_list(
+        AppTheme::ALL.to_vec(),
+        Some(app.settings.theme),
+        Message::ThemeChanged,
+    )
+    .style(style::pick_list)
+    .width(Length::Fixed(160.0));
 
     let mut left = row![
         tool_button("Open", Message::OpenDatabaseDialog),
         tool_button("New", Message::NewDatabaseDialog),
         tool_button("Memory", Message::OpenInMemory),
         recent_picker,
-        vertical_rule(1),
-        tool_button("Convert SQLite", Message::OpenConvertDialog),
+        toolbar_separator(),
+        tool_button("Convert", Message::OpenConvertDialog),
     ]
     .spacing(6)
     .align_y(Alignment::Center);
 
     if connected {
-        left = left.push(vertical_rule(1));
-        left = left.push(accent_button("Run  ▶", Message::RunQuery));
+        left = left.push(toolbar_separator());
+        left = left.push(accent_button("Run", Message::RunQuery));
         left = left.push(tool_button("Explain", Message::ExplainCurrent));
         left = left.push(tool_button("Format", Message::FormatSql));
         left = left.push(tool_button("Checkpoint", Message::Checkpoint));
@@ -114,21 +133,23 @@ fn toolbar(app: &Studio) -> Element<'_, Message> {
     )
     .padding(Padding::from([6, 10]))
     .width(Length::Fill)
+    .height(Length::Fixed(style::COMMAND_BAR_HEIGHT))
+    .style(style::command_bar)
     .into()
 }
 
 fn tool_button(label: &str, msg: Message) -> Element<'_, Message> {
     button(text(label).size(13))
-        .padding(Padding::from([5, 10]))
-        .style(button::secondary)
+        .padding(Padding::from([6, 11]))
+        .style(style::toolbar_button)
         .on_press(msg)
         .into()
 }
 
 fn accent_button(label: &str, msg: Message) -> Element<'_, Message> {
     button(text(label).size(13))
-        .padding(Padding::from([5, 12]))
-        .style(button::primary)
+        .padding(Padding::from([6, 13]))
+        .style(style::primary_button)
         .on_press(msg)
         .into()
 }
@@ -142,13 +163,9 @@ fn main_layout(app: &Studio) -> Element<'_, Message> {
         return welcome(app);
     }
 
-    row![
-        sidebar(app),
-        vertical_rule(1),
-        work_area(app),
-    ]
-    .height(Length::Fill)
-    .into()
+    row![sidebar(app), vertical_rule(1), work_area(app),]
+        .height(Length::Fill)
+        .into()
 }
 
 fn welcome(app: &Studio) -> Element<'_, Message> {
@@ -159,14 +176,14 @@ fn welcome(app: &Studio) -> Element<'_, Message> {
         for path in &app.settings.recent_files {
             col = col.push(
                 button(text(path).size(13).font(MONO))
-                    .style(button::text)
+                    .style(style::text_button)
                     .on_press(Message::OpenRecent(path.clone())),
             );
         }
         col.into()
     };
 
-    container(
+    let welcome_panel = container(
         column![
             text("DecentDB Studio").size(34),
             text("A cross-platform client & administration tool for DecentDB").size(15),
@@ -185,9 +202,14 @@ fn welcome(app: &Studio) -> Element<'_, Message> {
         .spacing(8)
         .align_x(Alignment::Center),
     )
-    .center_x(Length::Fill)
-    .center_y(Length::Fill)
-    .into()
+    .padding(28)
+    .width(Length::Shrink)
+    .style(style::elevated_panel);
+
+    container(welcome_panel)
+        .center_x(Length::Fill)
+        .center_y(Length::Fill)
+        .into()
 }
 
 // ----------------------------------------------------------------------------
@@ -274,6 +296,7 @@ fn sidebar(app: &Studio) -> Element<'_, Message> {
     let filter_box = text_input("Filter objects…", &app.sidebar_filter)
         .on_input(Message::SidebarFilterChanged)
         .size(13)
+        .style(style::text_input)
         .padding(6);
 
     container(
@@ -284,8 +307,9 @@ fn sidebar(app: &Studio) -> Element<'_, Message> {
         .spacing(6),
     )
     .padding(8)
-    .width(Length::Fixed(260.0))
+    .width(Length::Fixed(style::SIDEBAR_WIDTH))
     .height(Length::Fill)
+    .style(style::sidebar)
     .into()
 }
 
@@ -310,7 +334,7 @@ fn group_header<'a>(
     )
     .width(Length::Fill)
     .padding(Padding::from([4, 6]))
-    .style(button::text)
+    .style(style::text_button)
     .on_press(Message::ToggleGroup(group))
     .into()
 }
@@ -322,16 +346,10 @@ fn object_row<'a>(name: &'a str, detail: &str, selected: bool) -> Element<'a, Me
     ]
     .spacing(1);
 
-    let style = if selected {
-        button::primary
-    } else {
-        button::text
-    };
-
     button(row![hspace(14.0), label].spacing(4))
         .width(Length::Fill)
-        .padding(Padding::from([3, 6]))
-        .style(style)
+        .padding(Padding::from([4, 7]))
+        .style(style::object_row(selected))
         .on_press(Message::SelectObject(name.to_string()))
         .into()
 }
@@ -356,25 +374,25 @@ fn info_row<'a>(name: &'a str, detail: &str) -> Element<'a, Message> {
 // ----------------------------------------------------------------------------
 
 fn work_area(app: &Studio) -> Element<'_, Message> {
-    column![panel_tabs(app), horizontal_rule(1), panel_body(app)]
-        .width(Length::Fill)
-        .height(Length::Fill)
-        .into()
+    container(column![
+        panel_tabs(app),
+        horizontal_rule(1),
+        panel_body(app)
+    ])
+    .width(Length::Fill)
+    .height(Length::Fill)
+    .style(style::panel_surface)
+    .into()
 }
 
 fn panel_tabs(app: &Studio) -> Element<'_, Message> {
     let mut tabs = row![].spacing(2).align_y(Alignment::Center);
     for panel in Panel::ALL {
         let active = app.panel == *panel;
-        let style = if active {
-            button::primary
-        } else {
-            button::text
-        };
         tabs = tabs.push(
             button(text(panel.label()).size(13))
                 .padding(Padding::from([5, 12]))
-                .style(style)
+                .style(style::tab_button(active))
                 .on_press(Message::SelectPanel(*panel)),
         );
     }
@@ -419,7 +437,7 @@ fn query_panel(app: &Studio) -> Element<'_, Message> {
         });
 
     let mut editor_bar = row![
-        accent_button("Run  ▶", Message::RunQuery),
+        accent_button("Run", Message::RunQuery),
         tool_button("Explain", Message::ExplainCurrent),
         tool_button("Format", Message::FormatSql),
         tool_button("Clear", Message::ClearEditor),
@@ -428,7 +446,10 @@ fn query_panel(app: &Studio) -> Element<'_, Message> {
     .align_y(Alignment::Center);
 
     if let Some(snippet) = select_snippet {
-        editor_bar = editor_bar.push(tool_button("Select template", Message::InsertSnippet(snippet)));
+        editor_bar = editor_bar.push(tool_button(
+            "Select template",
+            Message::InsertSnippet(snippet),
+        ));
     }
 
     let editor_bar = editor_bar
@@ -466,13 +487,15 @@ fn completion_bar(app: &Studio) -> Element<'_, Message> {
         chips = chips.push(
             button(text(cand.clone()).size(12).font(MONO))
                 .padding(Padding::from([2, 8]))
-                .style(button::secondary)
+                .style(style::chip_button)
                 .on_press(Message::ApplyCompletion(cand)),
         );
     }
-    container(scrollable(chips).direction(scrollable::Direction::Horizontal(
-        scrollable::Scrollbar::default(),
-    )))
+    container(
+        scrollable(chips).direction(scrollable::Direction::Horizontal(
+            scrollable::Scrollbar::default(),
+        )),
+    )
     .padding(Padding::from([2, 6]))
     .width(Length::Fill)
     .into()
@@ -498,16 +521,23 @@ fn results_view(app: &Studio) -> Element<'_, Message> {
         tabs = tabs.push(
             button(text(label).size(12))
                 .padding(Padding::from([3, 8]))
-                .style(if active { button::primary } else { button::text })
+                .style(style::tab_button(active))
                 .on_press(Message::SelectResultTab(i)),
         );
     }
 
     let active = &app.results[app.active_result];
     let export_row = row![
-        text(format!("{:.2} ms", active.elapsed_ms)).size(12).style(text::secondary),
+        text(format!("{:.2} ms", active.elapsed_ms))
+            .size(12)
+            .style(text::secondary),
         horizontal_space(),
-        pick_list(Format::ALL.to_vec(), Some(app.export_format), Message::ExportFormatChanged),
+        pick_list(
+            Format::ALL.to_vec(),
+            Some(app.export_format),
+            Message::ExportFormatChanged
+        )
+        .style(style::pick_list),
         tool_button("Export", Message::ExportResults),
     ]
     .spacing(6)
@@ -516,11 +546,9 @@ fn results_view(app: &Studio) -> Element<'_, Message> {
     let grid: Element<Message> = if active.is_query {
         result_grid(active)
     } else {
-        container(
-            text(format!("{} row(s) affected", active.affected_rows)).size(14),
-        )
-        .padding(16)
-        .into()
+        container(text(format!("{} row(s) affected", active.affected_rows)).size(14))
+            .padding(16)
+            .into()
     };
 
     column![tabs, export_row, horizontal_rule(1), grid]
@@ -582,19 +610,7 @@ fn grid_header_cell(label: &str, width: Length) -> Element<'_, Message> {
     container(text(label.to_string()).size(12).font(MONO))
         .padding(Padding::from([5, 8]))
         .width(width)
-        .style(|theme: &Theme| {
-            let palette = theme.extended_palette();
-            container::Style {
-                background: Some(Background::Color(palette.background.strong.color)),
-                text_color: Some(palette.background.strong.text),
-                border: Border {
-                    color: palette.background.weak.color,
-                    width: 1.0,
-                    radius: 0.0.into(),
-                },
-                ..container::Style::default()
-            }
-        })
+        .style(style::grid_header)
         .into()
 }
 
@@ -611,23 +627,7 @@ fn grid_data_cell<'a>(
     container(label)
         .padding(Padding::from([4, 8]))
         .width(width)
-        .style(move |theme: &Theme| {
-            let palette = theme.extended_palette();
-            let bg = if row_index % 2 == 0 {
-                palette.background.base.color
-            } else {
-                palette.background.weak.color
-            };
-            container::Style {
-                background: Some(Background::Color(bg)),
-                border: Border {
-                    color: palette.background.weak.color,
-                    width: 1.0,
-                    radius: 0.0.into(),
-                },
-                ..container::Style::default()
-            }
-        })
+        .style(style::grid_cell(row_index))
         .into()
 }
 
@@ -636,24 +636,7 @@ fn row_number_cell<'a>(label: &str, header: bool) -> Element<'a, Message> {
     container(t)
         .padding(Padding::from([4, 6]))
         .width(Length::Fixed(46.0))
-        .style(move |theme: &Theme| {
-            let palette = theme.extended_palette();
-            let bg = if header {
-                palette.background.strong.color
-            } else {
-                palette.background.weak.color
-            };
-            container::Style {
-                background: Some(Background::Color(bg)),
-                text_color: Some(palette.background.strong.text),
-                border: Border {
-                    color: palette.background.weak.color,
-                    width: 1.0,
-                    radius: 0.0.into(),
-                },
-                ..container::Style::default()
-            }
-        })
+        .style(style::row_number(header))
         .into()
 }
 
@@ -663,10 +646,12 @@ fn row_number_cell<'a>(label: &str, header: bool) -> Element<'a, Message> {
 
 fn data_panel(app: &Studio) -> Element<'_, Message> {
     let Some(table) = &app.selected_object else {
-        return container(text("Select a table in the sidebar to browse its data").style(text::secondary))
-            .center_x(Length::Fill)
-            .padding(20)
-            .into();
+        return container(
+            text("Select a table in the sidebar to browse its data").style(text::secondary),
+        )
+        .center_x(Length::Fill)
+        .padding(20)
+        .into();
     };
 
     let editable = app
@@ -683,16 +668,19 @@ fn data_panel(app: &Studio) -> Element<'_, Message> {
         tool_button("◀ Prev", Message::BrowsePrevPage),
         text(format!("Page {}", app.browse_page + 1)).size(13),
         tool_button("Next ▶", Message::BrowseNextPage),
-        pick_list(Format::ALL.to_vec(), Some(app.export_format), Message::ExportFormatChanged),
+        pick_list(
+            Format::ALL.to_vec(),
+            Some(app.export_format),
+            Message::ExportFormatChanged
+        )
+        .style(style::pick_list),
         tool_button("Export", Message::ExportResults),
     ]
     .spacing(8)
     .align_y(Alignment::Center);
 
     if !editable {
-        header = header.push(
-            text("read-only (no PK)").size(11).style(text::secondary),
-        );
+        header = header.push(text("read-only (no PK)").size(11).style(text::secondary));
     }
 
     let grid: Element<Message> = match &app.browse {
@@ -715,12 +703,15 @@ fn data_panel(app: &Studio) -> Element<'_, Message> {
 
 /// Editor strip for adding a new row.
 fn new_row_editor(draft: &[(String, String)]) -> Element<'_, Message> {
-    let mut fields = row![text("New row:").size(13)].spacing(6).align_y(Alignment::Center);
+    let mut fields = row![text("New row:").size(13)]
+        .spacing(6)
+        .align_y(Alignment::Center);
     for (i, (name, value)) in draft.iter().enumerate() {
         fields = fields.push(
             text_input(name, value)
                 .on_input(move |t| Message::NewRowChanged(i, t))
                 .size(12)
+                .style(style::text_input)
                 .width(Length::Fixed(120.0))
                 .padding(4),
         );
@@ -731,13 +722,7 @@ fn new_row_editor(draft: &[(String, String)]) -> Element<'_, Message> {
     container(fields)
         .padding(8)
         .width(Length::Fill)
-        .style(|theme: &Theme| {
-            let palette = theme.extended_palette();
-            container::Style {
-                background: Some(Background::Color(palette.background.weak.color)),
-                ..container::Style::default()
-            }
-        })
+        .style(style::elevated_panel)
         .into()
 }
 
@@ -763,7 +748,7 @@ fn editable_grid<'a>(app: &'a Studio, rs: &'a ResultSet, editable: bool) -> Elem
             line = line.push(
                 container(
                     button(text("✕").size(11))
-                        .style(button::danger)
+                        .style(style::danger_button)
                         .padding(Padding::from([2, 6]))
                         .on_press(Message::DeleteRow(ri)),
                 )
@@ -779,13 +764,18 @@ fn editable_grid<'a>(app: &'a Studio, rs: &'a ResultSet, editable: bool) -> Elem
                 .unwrap_or(false);
 
             if editing_here {
-                let draft = app.editing.as_ref().map(|e| e.draft.clone()).unwrap_or_default();
+                let draft = app
+                    .editing
+                    .as_ref()
+                    .map(|e| e.draft.clone())
+                    .unwrap_or_default();
                 line = line.push(
                     container(
                         text_input("", &draft)
                             .on_input(Message::EditChanged)
                             .on_submit(Message::CommitEdit)
                             .size(12)
+                            .style(style::text_input)
                             .padding(3),
                     )
                     .width(col_width)
@@ -798,7 +788,11 @@ fn editable_grid<'a>(app: &'a Studio, rs: &'a ResultSet, editable: bool) -> Elem
                 } else {
                     truncate(&value::display(cell), 200)
                 };
-                let raw = if is_null { String::new() } else { value::display(cell) };
+                let raw = if is_null {
+                    String::new()
+                } else {
+                    value::display(cell)
+                };
                 if editable {
                     line = line.push(editable_cell(display, is_null, raw, col_width, ri, ci));
                 } else {
@@ -809,7 +803,10 @@ fn editable_grid<'a>(app: &'a Studio, rs: &'a ResultSet, editable: bool) -> Elem
         body = body.push(line);
     }
 
-    let table = column![container(header), scrollable(body).height(Length::Fill).width(Length::Fill)];
+    let table = column![
+        container(header),
+        scrollable(body).height(Length::Fill).width(Length::Fill)
+    ];
 
     scrollable(table)
         .direction(scrollable::Direction::Both {
@@ -835,24 +832,7 @@ fn editable_cell<'a>(
         label = label.style(text::secondary);
     }
     button(label)
-        .style(move |theme: &Theme, _status| {
-            let palette = theme.extended_palette();
-            let bg = if row_index % 2 == 0 {
-                palette.background.base.color
-            } else {
-                palette.background.weak.color
-            };
-            button::Style {
-                background: Some(Background::Color(bg)),
-                text_color: palette.background.base.text,
-                border: Border {
-                    color: palette.background.weak.color,
-                    width: 1.0,
-                    radius: 0.0.into(),
-                },
-                ..button::Style::default()
-            }
-        })
+        .style(style::editable_cell(row_index))
         .padding(Padding::from([4, 8]))
         .width(width)
         .on_press(Message::BeginEdit(row_index, col_index, raw))
@@ -902,16 +882,14 @@ fn structure_panel(app: &Studio) -> Element<'_, Message> {
     };
 
     if let Some(table) = app.schema.table(name) {
-        let mut cols = column![
-            row![
-                struct_head("Column", 200.0),
-                struct_head("Type", 140.0),
-                struct_head("Null", 60.0),
-                struct_head("Key", 60.0),
-                struct_head("Default", 160.0),
-            ]
-            .spacing(0)
+        let mut cols = column![row![
+            struct_head("Column", 200.0),
+            struct_head("Type", 140.0),
+            struct_head("Null", 60.0),
+            struct_head("Key", 60.0),
+            struct_head("Default", 160.0),
         ]
+        .spacing(0)]
         .spacing(0);
 
         for c in &table.columns {
@@ -959,7 +937,9 @@ fn structure_panel(app: &Studio) -> Element<'_, Message> {
             container(
                 column![
                     text(format!("{TABLE_ICON} {}", table.name)).size(18),
-                    text(format!("{} rows", table.row_count)).size(13).style(text::secondary),
+                    text(format!("{} rows", table.row_count))
+                        .size(13)
+                        .style(text::secondary),
                     vspace(8.0),
                     text("Columns").size(15),
                     cols,
@@ -1005,14 +985,7 @@ fn struct_head(label: &str, width: f32) -> Element<'_, Message> {
     container(text(label.to_string()).size(12))
         .padding(Padding::from([4, 8]))
         .width(Length::Fixed(width))
-        .style(|theme: &Theme| {
-            let palette = theme.extended_palette();
-            container::Style {
-                background: Some(Background::Color(palette.background.strong.color)),
-                text_color: Some(palette.background.strong.text),
-                ..container::Style::default()
-            }
-        })
+        .style(style::grid_header)
         .into()
 }
 
@@ -1020,17 +993,7 @@ fn struct_cell<'a>(label: &str, width: f32) -> Element<'a, Message> {
     container(text(label.to_string()).size(12).font(MONO))
         .padding(Padding::from([3, 8]))
         .width(Length::Fixed(width))
-        .style(|theme: &Theme| {
-            let palette = theme.extended_palette();
-            container::Style {
-                border: Border {
-                    color: palette.background.weak.color,
-                    width: 1.0,
-                    radius: 0.0.into(),
-                },
-                ..container::Style::default()
-            }
-        })
+        .style(style::grid_cell(0))
         .into()
 }
 
@@ -1038,18 +1001,7 @@ fn ddl_box(ddl: &str) -> Element<'_, Message> {
     container(text(ddl.to_string()).size(12).font(MONO))
         .padding(10)
         .width(Length::Fill)
-        .style(|theme: &Theme| {
-            let palette = theme.extended_palette();
-            container::Style {
-                background: Some(Background::Color(palette.background.weak.color)),
-                border: Border {
-                    color: palette.background.strong.color,
-                    width: 1.0,
-                    radius: 4.0.into(),
-                },
-                ..container::Style::default()
-            }
-        })
+        .style(style::inset_panel)
         .into()
 }
 
@@ -1062,18 +1014,23 @@ fn dashboard_panel(app: &Studio) -> Element<'_, Message> {
         return text("No database open").into();
     };
 
-    let mut cards = column![].spacing(10);
-    cards = cards.push(text(format!("Database: {}", conn.display_name())).size(20));
-    cards = cards.push(
-        text(format!("Path: {}", conn.path().display()))
-            .size(13)
-            .font(MONO)
-            .style(text::secondary),
-    );
-    cards = cards.push(text(format!("DecentDB engine v{}", decentdb::version())).size(13));
+    let identity = container(
+        column![
+            text(format!("Database: {}", conn.display_name())).size(20),
+            text(format!("Path: {}", conn.path().display()))
+                .size(13)
+                .font(MONO)
+                .style(text::secondary),
+            text(format!("DecentDB engine v{}", decentdb::version())).size(13),
+        ]
+        .spacing(6),
+    )
+    .padding(16)
+    .width(Length::Fill)
+    .style(style::elevated_panel);
 
     let stats: Element<Message> = match conn.storage_info() {
-        Ok(info) => {
+        Ok(info) => container(
             column![
                 stat_card("Format version", info.format_version.to_string()),
                 stat_card("Page size", format!("{} bytes", info.page_size)),
@@ -1083,9 +1040,12 @@ fn dashboard_panel(app: &Studio) -> Element<'_, Message> {
                 stat_card("Last checkpoint LSN", info.last_checkpoint_lsn.to_string()),
                 stat_card("Active readers", info.active_readers.to_string()),
             ]
-            .spacing(6)
-            .into()
-        }
+            .spacing(6),
+        )
+        .padding(14)
+        .width(Length::Fill)
+        .style(style::inset_panel)
+        .into(),
         Err(e) => text(format!("Storage info unavailable: {e}"))
             .style(text::danger)
             .into(),
@@ -1102,23 +1062,21 @@ fn dashboard_panel(app: &Studio) -> Element<'_, Message> {
     let migrate = column![
         text("Migrate / export database").size(15),
         row![
-            tool_button("Export → SQLite", Message::ExportDatabaseSqlite),
-            tool_button("Export → SQL dump", Message::ExportDatabaseDump),
+            tool_button("Export SQLite", Message::ExportDatabaseSqlite),
+            tool_button("Export SQL dump", Message::ExportDatabaseDump),
             tool_button("Checkpoint WAL", Message::Checkpoint),
         ]
         .spacing(8),
     ]
     .spacing(6);
+    let migrate = container(migrate)
+        .padding(14)
+        .width(Length::Fill)
+        .style(style::elevated_panel);
 
-    scrollable(
-        container(
-            column![cards, vspace(10.0), counts, vspace(10.0), migrate, vspace(10.0), stats]
-                .spacing(8),
-        )
-        .padding(16),
-    )
-    .height(Length::Fill)
-    .into()
+    scrollable(container(column![identity, counts, migrate, stats].spacing(8)).padding(16))
+        .height(Length::Fill)
+        .into()
 }
 
 fn stat_card(label: &str, value: String) -> Element<'_, Message> {
@@ -1141,18 +1099,7 @@ fn count_card<'a>(icon: &'a str, label: &'a str, count: usize) -> Element<'a, Me
     )
     .padding(16)
     .width(Length::Fixed(120.0))
-    .style(|theme: &Theme| {
-        let palette = theme.extended_palette();
-        container::Style {
-            background: Some(Background::Color(palette.background.weak.color)),
-            border: Border {
-                color: palette.primary.weak.color,
-                width: 1.0,
-                radius: 6.0.into(),
-            },
-            ..container::Style::default()
-        }
-    })
+    .style(style::metric_card)
     .into()
 }
 
@@ -1182,7 +1129,7 @@ fn convert_dialog(app: &Studio) -> Element<'_, Message> {
     let run_button: Element<Message> = if cv.running {
         button(text("Converting…").size(14))
             .padding(Padding::from([6, 16]))
-            .style(button::secondary)
+            .style(style::toolbar_button)
             .into()
     } else {
         accent_button("Start conversion", Message::RunConversion)
@@ -1201,37 +1148,32 @@ fn convert_dialog(app: &Studio) -> Element<'_, Message> {
         row![
             text("Source SQLite:").size(13).width(Length::Fixed(120.0)),
             text(source_label).size(13).font(MONO).width(Length::Fill),
-            tool_button("Choose…", Message::PickConvertSource),
+            tool_button("Choose", Message::PickConvertSource),
         ]
         .spacing(8)
         .align_y(Alignment::Center),
         row![
-            text("Target DecentDB:").size(13).width(Length::Fixed(120.0)),
+            text("Target DecentDB:")
+                .size(13)
+                .width(Length::Fixed(120.0)),
             text(target_label).size(13).font(MONO).width(Length::Fill),
-            tool_button("Choose…", Message::PickConvertTarget),
+            tool_button("Choose", Message::PickConvertTarget),
         ]
         .spacing(8)
         .align_y(Alignment::Center),
         vspace(8.0),
-        row![run_button, tool_button("Close", Message::CloseConvertDialog)].spacing(10),
+        row![
+            run_button,
+            tool_button("Close", Message::CloseConvertDialog)
+        ]
+        .spacing(10),
         vspace(8.0),
         text("Log").size(15),
         container(scrollable(log).height(Length::Fill))
             .padding(10)
             .height(Length::Fill)
             .width(Length::Fill)
-            .style(|theme: &Theme| {
-                let palette = theme.extended_palette();
-                container::Style {
-                    background: Some(Background::Color(palette.background.weak.color)),
-                    border: Border {
-                        color: palette.background.strong.color,
-                        width: 1.0,
-                        radius: 4.0.into(),
-                    },
-                    ..container::Style::default()
-                }
-            }),
+            .style(style::inset_panel),
     ]
     .spacing(8);
 
@@ -1267,7 +1209,7 @@ fn status_bar(app: &Studio) -> Element<'_, Message> {
     // The message area is a borderless button so clicking it dismisses the
     // current status notification.
     let dismissible = button(label)
-        .style(button::text)
+        .style(style::text_button)
         .padding(0)
         .on_press(Message::DismissStatus);
 
@@ -1284,13 +1226,8 @@ fn status_bar(app: &Studio) -> Element<'_, Message> {
     )
     .padding(Padding::from([4, 10]))
     .width(Length::Fill)
-    .style(|theme: &Theme| {
-        let palette = theme.extended_palette();
-        container::Style {
-            background: Some(Background::Color(palette.background.weak.color)),
-            ..container::Style::default()
-        }
-    })
+    .height(Length::Fixed(style::STATUS_BAR_HEIGHT))
+    .style(style::status_bar)
     .into()
 }
 
@@ -1321,7 +1258,3 @@ fn truncate(s: &str, max: usize) -> String {
         one_line
     }
 }
-
-
-
-

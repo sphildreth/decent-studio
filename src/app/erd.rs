@@ -11,19 +11,19 @@ use iced::mouse;
 use iced::widget::canvas::{self, Frame, Geometry, Path, Stroke, Text};
 use iced::widget::{button, canvas as canvas_widget, column, container, row, text, Space};
 use iced::{
-    alignment, Alignment, Element, Event, Length, Padding, Point, Rectangle, Renderer, Size, Theme,
-    Vector,
+    alignment, Alignment, Color, Element, Event, Length, Padding, Point, Rectangle, Renderer, Size,
+    Theme, Vector,
 };
 
 use decentdb_studio::db::schema::Table;
 
-use super::{Message, Studio};
+use super::{style, Message, Studio};
 
-const BOX_WIDTH: f32 = 200.0;
-const HEADER_HEIGHT: f32 = 26.0;
-const ROW_HEIGHT: f32 = 18.0;
-const H_GAP: f32 = 80.0;
-const V_GAP: f32 = 50.0;
+const BOX_WIDTH: f32 = 230.0;
+const HEADER_HEIGHT: f32 = 28.0;
+const ROW_HEIGHT: f32 = 20.0;
+const H_GAP: f32 = 95.0;
+const V_GAP: f32 = 58.0;
 
 /// Messages produced by the ERD canvas.
 #[derive(Debug, Clone)]
@@ -74,7 +74,11 @@ pub fn view(app: &Studio) -> Element<'_, Message> {
     }
 
     let toolbar = row![
-        text(format!("Entity-Relationship Diagram · {} tables", app.schema.tables.len())).size(14),
+        text(format!(
+            "Entity-Relationship Diagram · {} tables",
+            app.schema.tables.len()
+        ))
+        .size(14),
         Space::new().width(Length::Fill),
         erd_button("Zoom +", ErdMessage::ZoomIn),
         erd_button("Zoom −", ErdMessage::ZoomOut),
@@ -95,7 +99,9 @@ pub fn view(app: &Studio) -> Element<'_, Message> {
 
     column![
         container(toolbar).padding(8),
-        container(diagram_canvas).width(Length::Fill).height(Length::Fill),
+        container(diagram_canvas)
+            .width(Length::Fill)
+            .height(Length::Fill),
     ]
     .height(Length::Fill)
     .into()
@@ -104,7 +110,7 @@ pub fn view(app: &Studio) -> Element<'_, Message> {
 fn erd_button(label: &str, msg: ErdMessage) -> Element<'_, Message> {
     button(text(label).size(13))
         .padding(Padding::from([4, 10]))
-        .style(button::secondary)
+        .style(style::toolbar_button)
         .on_press(Message::ErdMessage(msg))
         .into()
 }
@@ -169,10 +175,14 @@ impl<'a> canvas::Program<Message> for ErdCanvas<'a> {
         let mut frame = Frame::new(renderer, bounds.size());
 
         // Background.
-        frame.fill_rectangle(
-            Point::ORIGIN,
+        frame.fill_rectangle(Point::ORIGIN, bounds.size(), palette.background.base.color);
+        draw_canvas_grid(
+            &mut frame,
             bounds.size(),
-            palette.background.base.color,
+            Color {
+                a: 0.18,
+                ..palette.background.strong.color
+            },
         );
 
         let zoom = self.state.zoom;
@@ -200,7 +210,13 @@ impl<'a> canvas::Program<Message> for ErdCanvas<'a> {
                 };
                 let from = transform(*from, self.state.offset, zoom);
                 let to = transform(*to, self.state.offset, zoom);
-                let line = Path::line(from, to);
+                let mid_x = (from.x + to.x) / 2.0;
+                let line = Path::new(|path| {
+                    path.move_to(from);
+                    path.line_to(Point::new(mid_x, from.y));
+                    path.line_to(Point::new(mid_x, to.y));
+                    path.line_to(to);
+                });
                 frame.stroke(
                     &line,
                     Stroke::default()
@@ -224,15 +240,29 @@ impl<'a> canvas::Program<Message> for ErdCanvas<'a> {
     }
 }
 
+fn draw_canvas_grid(frame: &mut Frame, size: Size, color: Color) {
+    let spacing = 32.0;
+    let mut x = 0.0;
+    while x <= size.width {
+        let path = Path::line(Point::new(x, 0.0), Point::new(x, size.height));
+        frame.stroke(&path, Stroke::default().with_width(0.5).with_color(color));
+        x += spacing;
+    }
+
+    let mut y = 0.0;
+    while y <= size.height {
+        let path = Path::line(Point::new(0.0, y), Point::new(size.width, y));
+        frame.stroke(&path, Stroke::default().with_width(0.5).with_color(color));
+        y += spacing;
+    }
+}
+
 fn transform(p: Point, offset: Vector, zoom: f32) -> Point {
     Point::new(p.x * zoom + offset.x, p.y * zoom + offset.y)
 }
 
 fn table_by_name<'a>(tables: &'a [Table], name: &str) -> &'a Table {
-    tables
-        .iter()
-        .find(|t| t.name == name)
-        .unwrap_or(&tables[0])
+    tables.iter().find(|t| t.name == name).unwrap_or(&tables[0])
 }
 
 fn table_height(table: &Table) -> f32 {
@@ -274,7 +304,7 @@ fn draw_table(
     let width = BOX_WIDTH * zoom;
 
     // Box background + border.
-    let box_path = Path::rectangle(origin, Size::new(width, height));
+    let box_path = Path::rounded_rectangle(origin, Size::new(width, height), 6.0.into());
     frame.fill(&box_path, palette.background.weak.color);
     frame.stroke(
         &box_path,
@@ -284,8 +314,14 @@ fn draw_table(
     );
 
     // Header.
-    let header_path = Path::rectangle(origin, Size::new(width, HEADER_HEIGHT * zoom));
+    let header_path =
+        Path::rounded_rectangle(origin, Size::new(width, HEADER_HEIGHT * zoom), 6.0.into());
     frame.fill(&header_path, palette.primary.strong.color);
+    frame.fill_rectangle(
+        Point::new(origin.x, origin.y + (HEADER_HEIGHT * zoom / 2.0)),
+        Size::new(width, HEADER_HEIGHT * zoom / 2.0),
+        palette.primary.strong.color,
+    );
     frame.fill_text(Text {
         content: table.name.clone(),
         position: Point::new(origin.x + 8.0 * zoom, origin.y + 6.0 * zoom),
@@ -301,11 +337,11 @@ fn draw_table(
     for (i, col) in table.columns.iter().enumerate() {
         let y = origin.y + (HEADER_HEIGHT + i as f32 * ROW_HEIGHT) * zoom;
         let marker = if col.primary_key {
-            "🔑 "
+            "PK "
         } else if col.references.is_some() {
-            "↗ "
+            "FK "
         } else {
-            "  "
+            "   "
         };
         let label = format!("{marker}{} : {}", col.name, col.type_name);
         frame.fill_text(Text {

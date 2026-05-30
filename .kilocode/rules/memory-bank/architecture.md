@@ -44,6 +44,8 @@ types, recreates tables and indexes, then copies data in batches.
 ### iced UI
 
 - UI code lives in `src/app/views.rs` and `src/app/erd.rs`.
+- Shared styling lives in `src/app/style.rs`; prefer adding reusable style
+  helpers there instead of scattering inline widget styles through views.
 - Themes are centralized in `src/theme.rs`.
 - Keep database work out of view construction.
 
